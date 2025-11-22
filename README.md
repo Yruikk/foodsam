@@ -1,11 +1,12 @@
 # foodsam 项目说明
 
-## 1. 代码位置
+## 1. 代码位置与依赖安装
 
 建议先进入项目代码路径再运行示例命令：
 
 ```bash
 cd /root/qym/foodsam
+bash env_setup.sh
 ```
 
 ---
