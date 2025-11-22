@@ -1,0 +1,12 @@
+{
+  "default_weight": 0.2,
+  "classes": {
+    "danta": 0.0012,
+    "danta/boat": 0.0012,
+    "danta/cookietart": 0.0012,
+    "danta/eggtart": 0.0012,
+    "danta/petal": 0.0012,
+    "danta/smalltart": 0.0012,
+    "danta/strawberry": 0.0012
+  }
+}
