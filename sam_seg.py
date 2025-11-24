@@ -5,11 +5,18 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+import sys
 
 import cv2
 import numpy as np
 from PIL import Image
 from segment_anything import SamPredictor, sam_model_registry
+
+
+FILE = Path(__file__).resolve()
+ROOT = FILE.parents[0]
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,6 +64,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Food category key used to look up per-pixel weight.",
+    )
+    parser.add_argument(
+        "--sam-visualize",
+        action="store_true",
+        help="Visualize SAM segmentation results.",
     )
     return parser.parse_args()
 
@@ -172,6 +184,10 @@ def run(args: argparse.Namespace) -> None:
     if not Path(args.sam_checkpoint).expanduser().resolve().exists():
         raise FileNotFoundError(f"SAM checkpoint not found: {args.sam_checkpoint}")
 
+    if args.sam_visualize:
+        visual_root = ROOT / "sam_seg_results_visual"
+        visual_root.mkdir(parents=True, exist_ok=True)
+
     logger = _create_logger(output_root)
     logger.info("Processing images under %s", image_root)
 
@@ -249,6 +265,19 @@ def run(args: argparse.Namespace) -> None:
         output_path = (output_root / source_subdir / rel_path).with_suffix(".png")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         Image.fromarray(binary).save(output_path)
+
+        if args.sam_visualize:
+            visual_path = (visual_root / source_subdir / rel_path).with_suffix(".jpg")
+            visual_path.parent.mkdir(parents=True, exist_ok=True)
+
+            overlay = image.copy()
+            overlay[binary == 255] = [0, 255, 0]
+            vis_image = cv2.addWeighted(overlay, 0.5, image, 0.5, 0)
+            vis_image = cv2.cvtColor(vis_image, cv2.COLOR_RGB2BGR)
+            success = cv2.imwrite(str(visual_path), vis_image)
+            if not success:
+                logger.error("Failed to save visualization to %s", visual_path)
+
         white_pixels = int(np.count_nonzero(binary))
         estimated_weight = white_pixels * weight_per_pixel
         total_pixels += white_pixels

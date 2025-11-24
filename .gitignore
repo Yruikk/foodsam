@@ -1,21 +1,20 @@
+datasets/
 datasets_first_part/
-
 datasets_nonlabel/
 
 logs/
 
 sam_ckpts/
-
 sam_seg_results/
-
+sam_seg_results_visual/
 sam2/
 
 yolo_ckpts/
-
 yolo_seg_results/
-
+yolo_seg_results_visual/
 yolov5-test/
 
 .pt
 .pth
+__pycache__
 

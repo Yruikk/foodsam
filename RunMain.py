@@ -103,6 +103,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run YOLO inference with augmentation.",
     )
+    det_group.add_argument(
+        "--yolo-visualize",
+        action="store_true",
+        help="Visualize YOLO detection results.",
+    )
 
     sam_group = parser.add_argument_group("SAM segmentation options")
     sam_group.add_argument(
@@ -141,6 +146,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override the food class used during SAM weight lookup.",
     )
+    sam_group.add_argument(
+        "--sam-visualize",
+        action="store_true",
+        help="Visualize SAM segmentation results.",
+    )
 
     return parser.parse_args()
 
@@ -161,10 +171,10 @@ def run_pipeline(args: argparse.Namespace) -> None:
     weights_root = yolo_detect.ROOT / "yolo_ckpts"
     if args.det_weights:
         weights_path = Path(args.det_weights)
-    elif args.food_class:
-        weights_path = weights_root / f"{args.food_class}.pt"
+    # elif args.food_class:
+    #     weights_path = weights_root / f"{args.food_class}.pt"
     else:
-        weights_path = weights_root / "yolov5s.pt"
+        weights_path = weights_root / "yolov5s_v1.pt"
     if not weights_path.is_file():
         raise FileNotFoundError(f"YOLO weight file not found: {weights_path}")
 
@@ -185,6 +195,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         "dnn": args.det_dnn,
         "output_dir": Path(args.det_output_dir),
         "augment": args.det_augment,
+        "visualize": args.yolo_visualize,
     }
 
     yolo_detect.run(**detection_kwargs)
@@ -198,6 +209,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         model_type=args.sam_model_type,
         device=args.sam_device,
         food_class=args.sam_food_class if args.sam_food_class else args.food_class,
+        sam_visualize=args.sam_visualize,
     )
 
     sam_seg.run(sam_args)

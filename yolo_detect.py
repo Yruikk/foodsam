@@ -5,8 +5,11 @@ import os
 import sys
 from pathlib import Path
 
+import cv2
 import numpy as np
 import torch
+
+from yolo_utils.plots import Annotator, colors
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]
@@ -45,6 +48,7 @@ def run(
     dnn=False,
     output_dir=ROOT / "yolo_seg_results",
     augment=False,
+    visualize=False,
 ):
     source_dir = Path(image_dir).expanduser().resolve()
     if not source_dir.is_dir():
@@ -52,6 +56,10 @@ def run(
 
     results_dir = Path(output_dir).expanduser().resolve()
     results_dir.mkdir(parents=True, exist_ok=True)
+
+    if visualize:
+        visual_dir = ROOT / "yolo_seg_results_visual"
+        visual_dir.mkdir(parents=True, exist_ok=True)
 
     dataset_anchor = None
     for candidate in [source_dir, *source_dir.parents]:
@@ -115,6 +123,19 @@ def run(
             processed += 1
             LOGGER.info(f"{colorstr('green', 'Saved')} {output.shape[0]} boxes -> {target_path}")
 
+            # Visualization
+            if visualize:
+                visual_target_path = (visual_dir / source_subdir / rel_path)
+                visual_target_path.parent.mkdir(parents=True, exist_ok=True)
+
+                annotator = Annotator(im0, line_width=3, example=str(model.names))
+                if len(det):
+                    for *xyxy, conf, cls in reversed(det):
+                        label = f'{model.names[int(cls)]} {conf:.2f}'
+                        annotator.box_label(xyxy, label, color=colors(int(cls), True))
+
+                cv2.imwrite(str(visual_target_path), annotator.result())
+
     LOGGER.info(f"{colorstr('blue', 'Done')} Processed {processed} images from {source_dir}")
 
 
@@ -134,6 +155,7 @@ def parse_opt():
     parser.add_argument("--dnn", action="store_true", help="Use OpenCV DNN for ONNX inference.")
     parser.add_argument("--output-dir", type=str, default=ROOT / "yolo_seg_results", help="Directory for npy files.")
     parser.add_argument("--augment", action="store_true", help="Run inference with augmentation.")
+    parser.add_argument("--yolo-visualize", action="store_true", help="Visualize YOLO detection results.")
     return parser.parse_args()
 
 
@@ -147,7 +169,7 @@ def main(opt):
         if not weight_path.is_file():
             raise FileNotFoundError(f"Weight file not found for food class '{opt.food_class}': {weight_path}")
     else:
-        weight_path = weights_root / "yolov5s.pt"
+        weight_path = weights_root / "yolov5s_v1.pt"
         if not weight_path.is_file():
             raise FileNotFoundError(f"Default weight file missing: {weight_path}")
 
@@ -166,6 +188,7 @@ def main(opt):
         "dnn": opt.dnn,
         "output_dir": opt.output_dir,
         "augment": opt.augment,
+        "visualize": opt.yolo_visualize,
     }
     print_args({**arguments, "food_class": opt.food_class, "weights": str(weight_path)})
     run(**arguments)
