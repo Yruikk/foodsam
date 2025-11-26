@@ -1,8 +1,5 @@
 datasets/
-datasets_first_part/
 datasets_nonlabel/
-
-logs/
 
 sam_ckpts/
 sam_seg_results/
@@ -18,3 +15,4 @@ yolov5-test/
 .pth
 __pycache__
 
+*copy.py

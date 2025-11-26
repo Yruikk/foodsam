@@ -145,9 +145,22 @@ def _load_weight_config(config_path: Path, logger: logging.Logger) -> dict:
     return {"default_weight": default_weight, "classes": classes}
 
 
-def _resolve_weight(food_class: str | None, source_subdir: Path, config: dict) -> tuple[float, str]:
-    classes = config.get("classes", {})
-    fallback = config.get("default_weight", 0.2)
+def _resolve_weight_and_mode(
+    food_class: str | None,
+    source_subdir: Path,
+    pixel_config: dict,
+    object_config: dict,
+) -> tuple[float, str, str]:
+    """
+    Resolve weight and calculation mode (pixel or object).
+    Returns: (weight, source_key, mode)
+    mode is either 'pixel' or 'object'.
+    """
+    pixel_classes = pixel_config.get("classes", {})
+    object_classes = object_config.get("classes", {})
+    
+    pixel_fallback = pixel_config.get("default_weight", 0.2)
+    # object_fallback = object_config.get("default_weight", 20.0) # Not used as fallback for now
 
     def normalize(value: str | Path) -> str:
         return str(value).strip().lower().replace("\\", "/")
@@ -166,10 +179,17 @@ def _resolve_weight(food_class: str | None, source_subdir: Path, config: dict) -
         if not key or key in seen:
             continue
         seen.add(key)
-        if key in classes:
-            return classes[key], f"classes['{key}']"
+        
+        # Check object config first
+        if key in object_classes:
+            return float(object_classes[key]), f"object_classes['{key}']", "object"
+            
+        # Check pixel config
+        if key in pixel_classes:
+            return float(pixel_classes[key]), f"pixel_classes['{key}']", "pixel"
 
-    return float(fallback), "default_weight"
+    # Default fallback is pixel-based
+    return float(pixel_fallback), "default_weight (pixel)", "pixel"
 
 
 def run(args: argparse.Namespace) -> None:
@@ -204,18 +224,27 @@ def run(args: argparse.Namespace) -> None:
     )
 
     config_path = Path(__file__).resolve().parent / "weight_per_pixel.json"
+    object_config_path = Path(__file__).resolve().parent / "weight_per_object.json"
+    
     weight_config = _load_weight_config(config_path, logger)
-    weight_per_pixel, weight_source = _resolve_weight(args.food_class, source_subdir, weight_config)
+    object_config = _load_weight_config(object_config_path, logger) # Reuse same loader
+    
+    weight_val, weight_source, calc_mode = _resolve_weight_and_mode(
+        args.food_class, source_subdir, weight_config, object_config
+    )
+
     if args.food_class is None:
         logger.warning(
-            "--food-class not provided; using fallback weight %.6f from %s",
-            weight_per_pixel,
+            "--food-class not provided; using %s mode with weight %.6f from %s",
+            calc_mode,
+            weight_val,
             weight_source,
         )
     else:
         logger.info(
-            "Using per-pixel weight %.6f for '%s' (source: %s)",
-            weight_per_pixel,
+            "Using %s mode with weight %.6f for '%s' (source: %s)",
+            calc_mode,
+            weight_val,
             args.food_class,
             weight_source,
         )
@@ -227,8 +256,13 @@ def run(args: argparse.Namespace) -> None:
 
     processed = 0
     skipped = 0
-    total_pixels = 0
+    total_pixels = 0 # Used for pixel mode stats
+    total_objects = 0 # Used for object mode stats
     total_weight = 0.0
+    
+    # Kernel for morphological operations (object mode)
+    morph_kernel = np.ones((5, 5), np.uint8)
+
     for image_path in images:
         image = cv2.imread(str(image_path))
         if image is None:
@@ -278,16 +312,39 @@ def run(args: argparse.Namespace) -> None:
             if not success:
                 logger.error("Failed to save visualization to %s", visual_path)
 
-        white_pixels = int(np.count_nonzero(binary))
-        estimated_weight = white_pixels * weight_per_pixel
-        total_pixels += white_pixels
-        total_weight += estimated_weight
-        logger.info(
-            "Saved segmentation -> %s | pixels=%d | estimated_weight=%.2fg",
-            output_path,
-            white_pixels,
-            estimated_weight,
-        )
+        if calc_mode == "object":
+            # Dilate then Erode
+            dilated = cv2.dilate(binary, morph_kernel, iterations=1)
+            eroded = cv2.erode(dilated, morph_kernel, iterations=1)
+            
+            # Connected Components
+            num_labels, _ = cv2.connectedComponents(eroded)
+            # num_labels includes background (0), so subtract 1
+            object_count = max(0, num_labels - 1)
+            
+            estimated_weight = object_count * weight_val
+            total_objects += object_count
+            total_weight += estimated_weight
+            
+            logger.info(
+                "Saved segmentation -> %s | objects=%d | estimated_weight=%.2fg",
+                output_path,
+                object_count,
+                estimated_weight,
+            )
+        else:
+            # Pixel mode
+            white_pixels = int(np.count_nonzero(binary))
+            estimated_weight = white_pixels * weight_val
+            total_pixels += white_pixels
+            total_weight += estimated_weight
+            logger.info(
+                "Saved segmentation -> %s | pixels=%d | estimated_weight=%.2fg",
+                output_path,
+                white_pixels,
+                estimated_weight,
+            )
+            
         processed += 1
 
 
