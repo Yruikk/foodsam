@@ -4,9 +4,27 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import sys
+from datetime import datetime
 
 import sam_seg
 import yolo_detect
+
+
+class Tee:
+    """Helper class to write to both stdout/stderr and a file."""
+    def __init__(self, stream, file):
+        self.stream = stream
+        self.file = file
+
+    def write(self, message):
+        self.stream.write(message)
+        self.file.write(message)
+        self.file.flush()
+
+    def flush(self):
+        self.stream.flush()
+        self.file.flush()
 
 
 def parse_args() -> argparse.Namespace:
@@ -171,10 +189,19 @@ def run_pipeline(args: argparse.Namespace) -> None:
     weights_root = yolo_detect.ROOT / "yolo_ckpts"
     if args.det_weights:
         weights_path = Path(args.det_weights)
-    # elif args.food_class:
-    #     weights_path = weights_root / f"{args.food_class}.pt"
     else:
-        weights_path = weights_root / "yolov5s_v1.pt"
+        # Auto-select latest yolov5x_v*.pt
+        candidates = list(weights_root.glob("yolov5x_v*.pt"))
+        if candidates:
+            def get_version(p):
+                try:
+                    return int(p.stem.split("_v")[-1])
+                except ValueError:
+                    return -1
+            weights_path = sorted(candidates, key=get_version)[-1]
+        else:
+            weights_path = weights_root / "yolov5s_v1.pt"
+
     if not weights_path.is_file():
         raise FileNotFoundError(f"YOLO weight file not found: {weights_path}")
 
@@ -216,8 +243,43 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    args = parse_args()
-    run_pipeline(args)
+    # Set up logging to file and stdout
+    log_dir = Path(__file__).resolve().parent / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_path = log_dir / f"RunMain_{timestamp}.log"
+    
+    log_file = open(log_path, "w", encoding="utf-8")
+    
+    # Redirect stdout and stderr
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    
+    sys.stdout = Tee(original_stdout, log_file)
+    sys.stderr = Tee(original_stderr, log_file)
+    
+    # CRITICAL: Update YOLO logger to use the new redirected streams
+    # YOLO's logger was initialized at import time with the original streams
+    import logging
+    if hasattr(yolo_detect, 'LOGGER'):
+        for handler in yolo_detect.LOGGER.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                handler.stream = sys.stdout
+    
+    # Also update root logger if it has stream handlers
+    for handler in logging.root.handlers:
+        if isinstance(handler, logging.StreamHandler):
+            handler.stream = sys.stdout
+
+    print(f"Logging entire run to {log_path}")
+
+    try:
+        args = parse_args()
+        run_pipeline(args)
+    finally:
+        log_file.close()
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
 
 
 if __name__ == "__main__":

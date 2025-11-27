@@ -1,6 +1,8 @@
 datasets/
 datasets_nonlabel/
 
+logs/
+
 sam_ckpts/
 sam_seg_results/
 sam_seg_results_visual/

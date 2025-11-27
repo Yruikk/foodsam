@@ -61,15 +61,25 @@ def run(
         visual_dir = ROOT / "yolo_seg_results_visual"
         visual_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset_anchor = None
-    for candidate in [source_dir, *source_dir.parents]:
-        if candidate.name == "datasets":
-            dataset_anchor = candidate
-            break
-    if dataset_anchor is not None:
-        source_subdir = source_dir.relative_to(dataset_anchor)
-    else:
-        source_subdir = Path(source_dir.name)
+    # Determine source_subdir to preserve directory structure in output
+    try:
+        # Try relative to project root first (most common case)
+        source_subdir = source_dir.relative_to(ROOT)
+    except ValueError:
+        try:
+            # Try relative to current working directory
+            source_subdir = source_dir.relative_to(Path.cwd())
+        except ValueError:
+            # Fallback: try to find a common dataset anchor or just use the folder name
+            dataset_anchor = None
+            for candidate in [source_dir, *source_dir.parents]:
+                if candidate.name in ("datasets", "datasets_nonlabel"):
+                    dataset_anchor = candidate.parent
+                    break
+            if dataset_anchor is not None:
+                source_subdir = source_dir.relative_to(dataset_anchor)
+            else:
+                source_subdir = Path(source_dir.name)
 
     device = select_device(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
@@ -164,14 +174,27 @@ def main(opt):
     imgsz = opt.imgsz if len(opt.imgsz) > 1 else opt.imgsz * 2
     imgsz = tuple(imgsz)
     weights_root = ROOT / "yolo_ckpts"
-    if opt.food_class:
-        weight_path = weights_root / f"{opt.food_class}.pt"
-        if not weight_path.is_file():
-            raise FileNotFoundError(f"Weight file not found for food class '{opt.food_class}': {weight_path}")
+    
+    # Auto-select latest yolov5x_v*.pt
+    candidates = list(weights_root.glob("yolov5x_v*.pt"))
+    if candidates:
+        # Sort by version number. Assuming format yolov5x_v{N}.pt
+        def get_version(p):
+            try:
+                return int(p.stem.split("_v")[-1])
+            except ValueError:
+                return -1
+        
+        weight_path = sorted(candidates, key=get_version)[-1]
     else:
+        # Fallback if no yolov5x_v*.pt found
         weight_path = weights_root / "yolov5s_v1.pt"
         if not weight_path.is_file():
-            raise FileNotFoundError(f"Default weight file missing: {weight_path}")
+             # Last resort fallback
+             weight_path = weights_root / "yolov5s.pt"
+
+    if not weight_path.is_file():
+        raise FileNotFoundError(f"Could not find a suitable weight file in {weights_root}")
 
     arguments = {
         "image_dir": opt.image_dir,

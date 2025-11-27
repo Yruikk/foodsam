@@ -97,8 +97,8 @@ def _create_logger(log_dir: Path) -> logging.Logger:
 
 def _find_dataset_anchor(path: Path) -> Path | None:
     for candidate in [path, *path.parents]:
-        if candidate.name == "datasets":
-            return candidate
+        if candidate.name in ("datasets", "datasets_nonlabel"):
+            return candidate.parent
     return None
 
 
@@ -170,8 +170,13 @@ def _resolve_weight_and_mode(
         candidates.append(food_class)
 
     parts = [part for part in Path(str(source_subdir)).parts if part not in (".",)]
-    for i in range(len(parts), 0, -1):
-        candidates.append("/".join(parts[:i]))
+    
+    # Generate all possible sub-paths (suffixes of prefixes) to match keys like "Category/Subclass"
+    # regardless of where they appear in the path (e.g. datasets/Category/Subclass/18)
+    for start_idx in range(len(parts)):
+        sub_parts = parts[start_idx:]
+        for end_idx in range(len(sub_parts), 0, -1):
+            candidates.append("/".join(sub_parts[:end_idx]))
 
     seen: set[str] = set()
     for candidate in candidates:
@@ -208,7 +213,8 @@ def run(args: argparse.Namespace) -> None:
         visual_root = ROOT / "sam_seg_results_visual"
         visual_root.mkdir(parents=True, exist_ok=True)
 
-    logger = _create_logger(output_root)
+    log_root = ROOT / "logs"
+    logger = _create_logger(log_root)
     logger.info("Processing images under %s", image_root)
 
     images = _collect_images(image_root)
@@ -216,12 +222,19 @@ def run(args: argparse.Namespace) -> None:
         logger.warning("No JPG files discovered. Exiting.")
         return
 
-    dataset_anchor = _find_dataset_anchor(image_root)
-    source_subdir = (
-        image_root.relative_to(dataset_anchor)
-        if dataset_anchor is not None
-        else Path(image_root.name)
-    )
+    # Determine source_subdir to preserve directory structure in output
+    try:
+        source_subdir = image_root.relative_to(ROOT)
+    except ValueError:
+        try:
+            source_subdir = image_root.relative_to(Path.cwd())
+        except ValueError:
+            dataset_anchor = _find_dataset_anchor(image_root)
+            source_subdir = (
+                image_root.relative_to(dataset_anchor)
+                if dataset_anchor is not None
+                else Path(image_root.name)
+            )
 
     config_path = Path(__file__).resolve().parent / "weight_per_pixel.json"
     object_config_path = Path(__file__).resolve().parent / "weight_per_object.json"
@@ -261,7 +274,7 @@ def run(args: argparse.Namespace) -> None:
     total_weight = 0.0
     
     # Kernel for morphological operations (object mode)
-    morph_kernel = np.ones((5, 5), np.uint8)
+    morph_kernel = np.ones((30, 30), np.uint8)
 
     for image_path in images:
         image = cv2.imread(str(image_path))
@@ -313,14 +326,9 @@ def run(args: argparse.Namespace) -> None:
                 logger.error("Failed to save visualization to %s", visual_path)
 
         if calc_mode == "object":
-            # Dilate then Erode
-            dilated = cv2.dilate(binary, morph_kernel, iterations=1)
-            eroded = cv2.erode(dilated, morph_kernel, iterations=1)
-            
-            # Connected Components
-            num_labels, _ = cv2.connectedComponents(eroded)
-            # num_labels includes background (0), so subtract 1
-            object_count = max(0, num_labels - 1)
+            # Use the number of YOLO boxes as the object count
+            # boxes is already loaded from the npy file
+            object_count = boxes.shape[0] if boxes.ndim > 1 else (1 if boxes.size > 0 else 0)
             
             estimated_weight = object_count * weight_val
             total_objects += object_count
