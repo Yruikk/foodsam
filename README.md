@@ -29,7 +29,7 @@ python RunMain.py --image-dir ./datasets/Danta/boat/18/ --food-class boat --yolo
 参数说明：
 
 - `--image-dir`：待处理图片所在的目录路径（例如 `./datasets/Danta/boat/18/`）。
-- `--food-class`：食物类别名称，用于决定该类食物的重量计算方式（像素 OR 个数）。
+- `--food-class`：食物类别名称，用于在sam_seg.py中决定该类食物的重量计算方式（像素 OR 个数）。
 - `--yolo-visualize`：保存yolo的可视化检测结果（会生成./yolo_seg_results_visual/）。
 - `--sam-visualize`：保存sam的可视化检测结果（会生成./sam_seg_results_visual/）。
 
@@ -43,7 +43,7 @@ python RunMain.py --image-dir ./datasets/Danta/boat/18/ --food-class boat --yolo
 示例命令：
 
 ```bash
-python yolo_detect.py --image-dir ./datasets/Danta/boat/18/
+python yolo_detect.py --image-dir ./datasets/Danta/boat/18/ --yolo-visualize
 ```
 
 ### 3.2 第二步：SAM 分割
@@ -52,7 +52,7 @@ python yolo_detect.py --image-dir ./datasets/Danta/boat/18/
 示例命令：
 
 ```bash
-python sam_seg.py --image-dir ./datasets/Danta/boat/18/ --food-class danta
+python sam_seg.py --image-dir ./datasets/Danta/boat/18/ --food-class boat --sam-visualize
 ```
 
 行为说明：
@@ -113,6 +113,7 @@ python sam_seg.py --image-dir ./datasets/Danta/boat/18/ --food-class danta
 ├── yolo_detect.py                # YOLO 检测脚本
 ├── sam_seg.py                    # SAM 分割脚本
 ├── yolo_ckpts/                   # YOLO 权重
+├── sam_ckpts/                    # SAM 权重
 ├── weight_per_pixel.json         # 各类食物的每像素重量配置
 ├── weight_per_object.json        # 各类食物的每个体重量配置
 ├── datasets/
