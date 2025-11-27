@@ -23,7 +23,7 @@ bash env_setup.sh
 推荐的一键运行方式：
 
 ```bash
-python RunMain.py --image-dir ./datasets/Danta/boat/18/ --food-class danta --yolo-visualize --sam-visualize
+python RunMain.py --image-dir ./datasets/Danta/boat/18/ --food-class boat --yolo-visualize --sam-visualize
 ```
 
 参数说明：
@@ -123,6 +123,7 @@ python sam_seg.py --image-dir ./datasets/Danta/boat/18/ --food-class danta
 ├── sam_seg_results/              # SAM 分割结果输出目录（二值图像）
 ├── yolo_seg_results_visualize/   # YOLO 可视化检测结果输出目录
 ├── sam_seg_results_visualize/    # SAM 可视化分割结果输出目录
+├── logs/                         # RunMain的日志记录
 └── README.md                     # 本说明文件
 ```
 
