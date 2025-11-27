@@ -108,19 +108,22 @@ python sam_seg.py --image-dir ./datasets/Danta/boat/18/ --food-class danta
 下方是一个简化后的目录结构示例（仅供参考，实际可略有不同）：
 
 ```text
-/root/yrk/update_foodsam
-├── RunMain.py              # 一键串联 YOLO + SAM 的主入口脚本
-├── yolo_detect.py          # YOLO 检测脚本
-├── sam_seg.py              # SAM 分割脚本
-├── yolo_ckpts/             # 各 food-class 对应的 YOLO 权重
-├── weight_per_pixel.json   # 各类食物的每像素重量配置
+/root/foodsam
+├── RunMain.py                    # 一键串联 YOLO + SAM 的主入口脚本
+├── yolo_detect.py                # YOLO 检测脚本
+├── sam_seg.py                    # SAM 分割脚本
+├── yolo_ckpts/                   # YOLO 权重
+├── weight_per_pixel.json         # 各类食物的每像素重量配置
+├── weight_per_object.json        # 各类食物的每个体重量配置
 ├── datasets/
 │   └── Danta/
 │       └── boat/
-│           └── 18/         # 示例图片目录
-├── yolo_seg_results/       # YOLO 检测结果输出目录
-├── sam_seg_results/        # SAM 分割结果输出目录
-└── README.md               # 本说明文件
+│           └── 18/               # 示例图片目录
+├── yolo_seg_results/             # YOLO 检测结果输出目录（npy文件）
+├── sam_seg_results/              # SAM 分割结果输出目录（二值图像）
+├── yolo_seg_results_visualize/   # YOLO 可视化检测结果输出目录
+├── sam_seg_results_visualize/    # SAM 可视化分割结果输出目录
+└── README.md                     # 本说明文件
 ```
 
 
