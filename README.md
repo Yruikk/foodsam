@@ -106,16 +106,19 @@ $$
 
 ## 8. 当前目录（简化）
 
-- `/root/foodsam/RunMain.py`
-- `/root/foodsam/yolo_detect.py`
-- `/root/foodsam/sam_seg.py`
-- `/root/foodsam/calculate_accuracy.py`
-- `/root/foodsam/calculate_mIoU.py`
-- `/root/foodsam/weight_per_object.json`
-- `/root/foodsam/weight_per_pixel.json`
-- `/root/foodsam/datasets/`
-- `/root/foodsam/datasets_nonlabel/`
-- `/root/foodsam/yolo_seg_results/`
-- `/root/foodsam/sam_seg_results/`
-- `/root/foodsam/weight_results/`
-- `/root/foodsam/logs/`
+```text
+/root/foodsam
+├── RunMain.py
+├── yolo_detect.py
+├── sam_seg.py
+├── calculate_accuracy.py
+├── calculate_mIoU.py
+├── weight_per_object.json
+├── weight_per_pixel.json
+├── datasets/
+├── datasets_nonlabel/
+├── yolo_seg_results/
+├── sam_seg_results/
+├── weight_results/
+└── logs/
+```
