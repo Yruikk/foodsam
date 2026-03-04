@@ -1,12 +1,8 @@
 {
-  "default_weight": 0.2,
+  "default_weight": -100,
   "classes": {
-    "danta": 0.0012,
-    "danta/boat": 0.0012,
-    "danta/cookietart": 0.0012,
-    "danta/eggtart": 0.0012,
-    "danta/petal": 0.0012,
-    "danta/smalltart": 0.0012,
-    "danta/strawberry": 0.0012
+    "薯条-狼牙薯条": 5.809e-04,
+    "薯条-粗薯条": 5.200e-04,
+    "薯条-细薯条": 4.060e-04
   }
 }

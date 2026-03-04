@@ -1,132 +1,121 @@
-# foodsam 项目说明
+# foodsam 项目说明（更新版）
 
-## 1. 代码位置与依赖安装
+## 1. 环境准备
 
-建议先进入项目代码路径再运行示例命令：
+进入项目目录并安装依赖：
 
-```bash
-cd /root/foodsam
-bash env_setup.sh
-```
+- `cd /root/foodsam`
+- `bash env_setup.sh`
 
----
+## 2. 推荐用法（统一入口）
 
-## 2. 整体流程与快速开始
+当前推荐统一使用 `RunMain.py`，一次完成检测、分割和估重。
 
-当前完整的处理流程是两步：
+示例：
 
-1. 使用 YOLO 对图片进行检测，生成目标框（bounding boxes）结果；
-2. 使用 SAM 读取这些框作为 box prompt，进行分割，生成最终分割结果。
+- `python RunMain.py --image-dir ./datasets_nonlabel/Chips/薯条-狼牙薯条/1-180/ --yolo-visualize --sam-visualize`
 
-你可以通过一个入口脚本 `RunMain.py` 一次性完成这两步，也可以按需要单独调用 `yolo_detect.py` 和 `sam_seg.py`。
+常用参数：
 
-推荐的一键运行方式：
+- `--image-dir`：输入图片目录（递归处理）
+- `--yolo-visualize`：保存检测可视化
+- `--sam-visualize`：保存分割可视化
+- `--weight-output-root`：每张图估重结果输出目录（默认 `weight_results`）
 
-```bash
-python RunMain.py --image-dir ./datasets/Danta/boat/18/ --food-class boat --yolo-visualize --sam-visualize
-```
+说明：`RunMain.py` 现在不需要强制传 `--food-class`。不传时会按路径和配置自动匹配类别并选择估重方式。
 
-参数说明：
+## 3. 主要输出目录
 
-- `--image-dir`：待处理图片所在的目录路径（例如 `./datasets/Danta/boat/18/`）。
-- `--food-class`：食物类别名称，用于在sam_seg.py中决定该类食物的重量计算方式（像素 OR 个数）。
-- `--yolo-visualize`：保存yolo的可视化检测结果（会生成./yolo_seg_results_visual/）。
-- `--sam-visualize`：保存sam的可视化检测结果（会生成./sam_seg_results_visual/）。
+- `yolo_seg_results/.../*.npy`：检测框
+- `sam_seg_results/.../*.png`：分割掩码
+- `weight_results/.../*.npy`：每张图预测重量（克）
+- `logs/RunMain_*.log`：运行日志
 
----
+例如输入图片：
 
-## 3. 运行细节说明（YOLO + SAM 两步流程）
+- `datasets_nonlabel/Chicken/大鸡/1-1923/094127.jpg`
 
-### 3.1 第一步：YOLO 检测
+对应重量输出：
 
-脚本：`yolo_detect.py`  
-示例命令：
+- `weight_results/datasets_nonlabel/Chicken/大鸡/1-1923/094127.npy`
 
-```bash
-python yolo_detect.py --image-dir ./datasets/Danta/boat/18/ --yolo-visualize
-```
+## 4. 重量配置
 
-### 3.2 第二步：SAM 分割
+- `weight_per_object.json`：按个数估重（`g/object`）
+- `weight_per_pixel.json`：按分割像素估重（`g/pixel`）
 
-脚本：`sam_seg.py`  
-示例命令：
+选择逻辑：
 
-```bash
-python sam_seg.py --image-dir ./datasets/Danta/boat/18/ --food-class boat --sam-visualize
-```
+1. 命中 `weight_per_object.json` -> 用个数估重
+2. 否则命中 `weight_per_pixel.json` -> 用像素估重
+3. 都未命中 -> 使用 `weight_per_pixel.json` 中的 `default_weight`
 
-行为说明：
+## 5. calculate_accuracy.py（准确率评估）
 
-- 读取第一步在 `./yolo_seg_results/` 中保存的 YOLO 检测框结果，作为 **box prompt**；
-- 使用 SAM 模型对目标进行分割；
-- 在 `./sam_seg_results/` 中生成最终的分割结果（包括 mask、可视化结果以及用于计算面积/重量的中间数据）。
+该脚本会遍历 `weight_results` 下的 `.npy` 预测文件，并从路径中的 `xxx-yyy` 文件夹提取真实重量（`yyy`，单位克）。
 
+逐图计算：
 
-## 4. 模型与配置文件
+$$
+RSE = \frac{|pred-groundtruth|}{groundtruth}
+$$
 
-### 4.1 YOLO 权重文件
+全局平均后得到：
 
-- 目录：`./yolo_ckpts`
-- 作用：存放不同次训练得到的YOLO 权重文件，yolov5s是最小的，yolov5x是最大的，后续的v0/v1表示version（默认使用最新）。
+$$
+Accuracy = 1 - RSE
+$$
 
-### 4.2 每像素重量配置
+示例：
 
-- 文件：`./weight_per_pixel.json`
-- 作用：为每种 `food-class` 配置“每像素重量”等信息，用于基于分割结果计算食物重量。
+- `python calculate_accuracy.py`
+- `python calculate_accuracy.py --weight-results-root weight_results --verbose`
 
-结构示意（示例）：
+## 6. calculate_weight 逻辑说明
 
-```json
-{
-  "danta": {
-    "weight_per_pixel": 0.0012
-  },
-  "other_food": {
-    "weight_per_pixel": 0.0008
-  }
-}
-```
+仓库里当前没有独立 `calculate_weight.py`。估重逻辑已集成在 `RunMain.py` + `sam_seg.py`：
 
-### 4.3 每个体重量配置
+- 读取检测框和分割结果
+- 按 `weight_per_object.json` 或 `weight_per_pixel.json` 计算估计重量
+- 每张图保存到 `weight_results/.../*.npy`
 
-- 文件：`./weight_per_object.json`
-- 作用：为每种 `food-class` 配置“每个体重量”等信息，用于基于分割结果计算食物重量。
+## 7. calculate_mIoU.py（分割质量评估）
 
-结构示意（示例）：
+该脚本用于评估分割结果与 GT 掩码的一致性，默认对以下目录进行匹配评估：
 
-```json
-{
-  "classes": {
-    "蔓越莓曲奇（切片）": 17.0,
-    "抹茶曲奇": 16.0,
-  }
-}
-```
+- 预测：`sam_seg_results/datasets/images/val`
+- 标注：`sam_seg_gt/datasets/images/val`
 
-## 5. 项目目录结构示例
+计算方式（逐图）：
 
-下方是一个简化后的目录结构示例（仅供参考，实际可略有不同）：
+$$
+IoU = \frac{|Pred \cap GT|}{|Pred \cup GT|}
+$$
 
-```text
-/root/foodsam
-├── RunMain.py                    # 一键串联 YOLO + SAM 的主入口脚本
-├── yolo_detect.py                # YOLO 检测脚本
-├── sam_seg.py                    # SAM 分割脚本
-├── yolo_ckpts/                   # YOLO 权重
-├── sam_ckpts/                    # SAM 权重
-├── weight_per_pixel.json         # 各类食物的每像素重量配置
-├── weight_per_object.json        # 各类食物的每个体重量配置
-├── datasets/
-│   └── Danta/
-│       └── boat/
-│           └── 18/               # 示例图片目录
-├── yolo_seg_results/             # YOLO 检测结果输出目录（npy文件）
-├── sam_seg_results/              # SAM 分割结果输出目录（二值图像）
-├── yolo_seg_results_visualize/   # YOLO 可视化检测结果输出目录
-├── sam_seg_results_visualize/    # SAM 可视化分割结果输出目录
-├── logs/                         # RunMain的日志记录
-└── README.md                     # 本说明文件
-```
+然后对所有有效图片的 IoU 取平均，得到最终 `mIoU`。
 
+说明：
 
-```
+- 掩码按二值前景处理（像素值 `> 0` 视为前景）
+- 若预测图找不到对应 GT，或尺寸不一致，会提示并跳过
+
+示例：
+
+- `python calculate_mIoU.py`
+- `python calculate_mIoU.py --pred-dir sam_seg_results/datasets/images/val --gt-dir sam_seg_gt/datasets/images/val --verbose`
+
+## 8. 当前目录（简化）
+
+- `/root/foodsam/RunMain.py`
+- `/root/foodsam/yolo_detect.py`
+- `/root/foodsam/sam_seg.py`
+- `/root/foodsam/calculate_accuracy.py`
+- `/root/foodsam/calculate_mIoU.py`
+- `/root/foodsam/weight_per_object.json`
+- `/root/foodsam/weight_per_pixel.json`
+- `/root/foodsam/datasets/`
+- `/root/foodsam/datasets_nonlabel/`
+- `/root/foodsam/yolo_seg_results/`
+- `/root/foodsam/sam_seg_results/`
+- `/root/foodsam/weight_results/`
+- `/root/foodsam/logs/`

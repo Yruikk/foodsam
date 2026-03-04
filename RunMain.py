@@ -141,6 +141,12 @@ def parse_args() -> argparse.Namespace:
         help="Directory to store SAM binary segmentation outputs.",
     )
     sam_group.add_argument(
+        "--weight-output-root",
+        type=str,
+        default="weight_results",
+        help="Directory to store per-image estimated weight files.",
+    )
+    sam_group.add_argument(
         "--sam-checkpoint",
         type=str,
         default="sam_ckpts/sam_vit_h_4b8939.pth",
@@ -232,6 +238,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         image_dir=str(image_dir),
         boxes_root=str(boxes_root),
         output=args.sam_output,
+        weight_output_root=args.weight_output_root,
         sam_checkpoint=args.sam_checkpoint,
         model_type=args.sam_model_type,
         device=args.sam_device,

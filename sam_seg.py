@@ -42,6 +42,12 @@ def parse_args() -> argparse.Namespace:
         help="Directory to store SAM binary segmentation outputs.",
     )
     parser.add_argument(
+        "--weight-output-root",
+        type=str,
+        default="weight_results",
+        help="Directory to store per-image estimated weight files.",
+    )
+    parser.add_argument(
         "--sam-checkpoint",
         type=str,
         default="sam_ckpts/sam_vit_h_4b8939.pth",
@@ -159,7 +165,7 @@ def _resolve_weight_and_mode(
     pixel_classes = pixel_config.get("classes", {})
     object_classes = object_config.get("classes", {})
     
-    pixel_fallback = pixel_config.get("default_weight", 0.2)
+    pixel_fallback = pixel_config.get("default_weight", -100)
     # object_fallback = object_config.get("default_weight", 20.0) # Not used as fallback for now
 
     def normalize(value: str | Path) -> str:
@@ -201,6 +207,7 @@ def run(args: argparse.Namespace) -> None:
     image_root = Path(args.image_dir).expanduser().resolve()
     boxes_root = Path(args.boxes_root).expanduser().resolve()
     output_root = Path(args.output).expanduser().resolve()
+    weight_output_root = Path(args.weight_output_root).expanduser().resolve()
 
     if not image_root.exists():
         raise FileNotFoundError(f"Image directory not found: {image_root}")
@@ -313,6 +320,9 @@ def run(args: argparse.Namespace) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         Image.fromarray(binary).save(output_path)
 
+        weight_path = (weight_output_root / source_subdir / rel_path).with_suffix(".npy")
+        weight_path.parent.mkdir(parents=True, exist_ok=True)
+
         if args.sam_visualize:
             visual_path = (visual_root / source_subdir / rel_path).with_suffix(".jpg")
             visual_path.parent.mkdir(parents=True, exist_ok=True)
@@ -352,6 +362,9 @@ def run(args: argparse.Namespace) -> None:
                 white_pixels,
                 estimated_weight,
             )
+
+        np.save(weight_path, np.array([estimated_weight], dtype=np.float32))
+        logger.info("Saved weight -> %s", weight_path)
             
         processed += 1
 

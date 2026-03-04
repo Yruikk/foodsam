@@ -4,6 +4,8 @@ datasets_nonlabel/
 logs/
 
 sam_ckpts/
+sam_seg_gt/
+sam_seg_gt_visual/
 sam_seg_results/
 sam_seg_results_visual/
 sam2/
@@ -18,3 +20,4 @@ yolov5-test/
 __pycache__
 
 *copy.py
+*tmp*
